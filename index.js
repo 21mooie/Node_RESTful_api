@@ -10,6 +10,7 @@ var server = http.createServer(function(req,res){
 
     var trimmedPath = path.replace(/^\/+|\/+$/g, '');
 
+    //parse path for any query string peices
     var querySringObject = parsedUrl.query;
 
     var method = req.method.toLowerCase();
@@ -26,9 +27,35 @@ var server = http.createServer(function(req,res){
     
     req.on('end',function(){
         buffer += decoder.end(); 
-        res.end('Hello World\n');
 
-        console.log('Request received with this payload ' , buffer);
+        //decides if path requested is defined in api or is 404
+        var chosenHandler = typeof(router[trimmedPath]) !== 'undefined' ? router[trimmedPath] : handlers.notFound;
+
+        //construct object to send to handler
+        var data = {
+            'trimmedPath' : trimmedPath,
+            'queryStringObject' : querySringObject,
+            'method' : method,
+            'headers' : headers,
+            'payload' : buffer
+        }
+
+        chosenHandler(data,function(statusCode,payload){
+            //use status code of handler or default of 200
+            statusCode = typeof(statusCode) == 'number' ? statusCode : 200;
+
+            //use payload defined by handleror empty
+            payload = typeof(payload) == 'object' ? payload : {};
+
+            var payloadString = JSON.stringify(payload);
+
+            res.writeHead(statusCode);
+            res.end(payloadString);   
+            
+            console.log('Returning this response: ' , statusCode, payloadString);
+        });
+        
+        
     });
 
     
@@ -38,3 +65,17 @@ var server = http.createServer(function(req,res){
 server.listen(3000,function(){
     console.log("The server is listening on port 3000");
 })
+
+var handlers = {};
+
+handlers.sample = function(data,callback){
+    callback(406,{'name':'sample handler'})
+};
+
+handlers.notFound = function(data,callback){
+    callback(404);
+};
+
+var router = {
+    'sample' : handlers.sample
+};
